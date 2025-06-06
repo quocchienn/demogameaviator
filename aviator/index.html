@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trò Chơi Aviator</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div id="wrapper">
+        <div id="header">
+            <div id="last-counters"></div>
+        </div>
+        <div id="mid-wrapper">
+            <div id="balance">
+                SỐ DƯ: <span id="balance-amount">3,000,000 VND</span>
+            </div>
+            <div id="counterWrapper">
+                <div id="bg-image"></div>
+                <canvas id="canvas"></canvas>
+                <div id="counter">1.00x</div>
+                <div id="bet-timer">
+                    <div id="bet-timer-bar"></div>
+                </div>
+            </div>
+        </div>
+        <div id="bottom-wrapper">
+            <div id="input-wrapper">
+                <input type="text" id="bet-input" value="2.500" placeholder="Nhập số tiền cược (VND)">
+                <button id="increase-bet">+</button>
+                <label for="auto-bet">
+                    <input type="checkbox" id="auto-bet"> Tự động cược
+                </label>
+            </div>
+            <button id="bet-button">Đặt Cược</button>
+        </div>
+        <div id="message-button">
+            <p id="message">Chờ vòng tiếp theo</p>
+        </div>
+        <div id="bet-history">
+            <h3>Lịch Sử Cược</h3>
+            <table id="bet-history-table">
+                <thead>
+                    <tr>
+                        <th>Thời Gian</th>
+                        <th>Số Tiền Cược</th>
+                        <th>Hệ Số</th>
+                        <th>Kết Quả</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
