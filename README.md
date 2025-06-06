@@ -53,13 +53,9 @@ Một trò chơi Aviator mini được xây dựng bằng HTML/JS với đầy �
 ---
 
 Tóm tắt  
-Trò chơi này mô phỏng một game # Aviator với đầy đủ chức năng:  
+Trò chơi này mô phỏng một game Aviator với đầy đủ chức năng:  
 - Đặt cược và rút tiền thông minh  
 - Vòng chơi tự động  
 - Hiệu ứng máy bay sinh động  
 - Giao diện đơn giản, dễ sử dụng và thân thiện với người chơi
 
----
-
-Hướng dẫn sử dụng  
-1. Clone hoặc tải mã nguồn về máy:
