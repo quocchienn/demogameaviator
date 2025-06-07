@@ -294,8 +294,7 @@ function startRound() {
         noBetRounds = 0;
     }
 
-    // Nếu không cược liên tục 4-6 vòng, vòng tiếp theo sẽ nổ lớn
-    if (noBetRounds >= 4 && Math.random() < 0.7) { // 70% xác suất
+    if (noBetRounds >= 4 && Math.random() < 0.7) {
         forceBigExplosion = true;
         noBetRounds = 0; // reset lại sau khi đã kích hoạt
     } else {
@@ -492,37 +491,32 @@ let forceBigExplosion = false;
 
 function getRandomStop(placedBetAmount, cashedOut, forceBigExplosion) {
     if (forceBigExplosion) {
-        // Nổ ở 10,000x hoặc hơn (ví dụ 10,000x - 100,000x)
         return Math.random() * 90000 + 10000;
     }
-    // Nếu người chơi đã rút cược sớm, cho phép randomStop rất lớn
     if (cashedOut) {
-        // 80% xác suất ra hệ số cực lớn, 20% vẫn ra nhỏ
-        if (Math.random() < 0.8) {
-            // logMax = Math.log(10000000)
+        if (Math.random() < 0.8) { 
             let logMax = Math.log(10000000);
             let rand = Math.random() * logMax;
             let stop = Math.exp(rand);
             return Math.max(1.01, stop);
         } else {
-            // 20% vẫn ra nhỏ
+     
             return Math.random() * 10 + 1.01;
         }
     } else if (placedBetAmount && placedBetAmount > 0) {
-        // Nếu người chơi theo cược lớn và không rút, tăng xác suất nổ sớm
-        // Nếu cược >= 10% số dư, tăng xác suất nổ ở 2x-10x
-        let explodeChance = 0.7; // 70% nổ sớm
+ 
+        let explodeChance = 0.7; 
         if (Math.random() < explodeChance) {
-            return Math.random() * 8 + 2; // nổ từ 2x đến 10x
+            return Math.random() * 8 + 2;
         } else {
-            // 30% vẫn có thể lên cao hơn, nhưng hiếm khi vượt 100x
+            
             let logMax = Math.log(100);
             let rand = Math.random() * logMax;
             let stop = Math.exp(rand);
             return Math.max(10, stop);
         }
     } else {
-        // Người chơi không đặt cược hoặc cược nhỏ, random bình thường
+     
         let logMax = Math.log(100000);
         let rand = Math.random() * logMax;
         let stop = Math.exp(rand);
