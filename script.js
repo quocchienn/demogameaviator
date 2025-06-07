@@ -294,14 +294,15 @@ function startRound() {
         noBetRounds = 0;
     }
 
-    if (noBetRounds >= 4 && Math.random() < 0.7) {
+    // Nếu không cược liên tục 4-6 vòng, vòng tiếp theo sẽ nổ lớn
+    if (noBetRounds >= 4 && Math.random() < 0.7) { // 70% xác suất
         forceBigExplosion = true;
         noBetRounds = 0; // reset lại sau khi đã kích hoạt
     } else {
         forceBigExplosion = false;
     }
 
-    randomStop = getRandomStop(placedBet ? parseFormattedNumber(inputBox.value) : 0, cashedOut, forceBigExplosion);
+    randomStop = getRandomStop();
     messageField.textContent = 'Chờ vòng tiếp theo';
     setBetInputEnabled(true);
     document.getElementById('bet-timer').style.display = 'block';
@@ -367,7 +368,7 @@ if (authSubmit) {
             // Đăng ký mới
             users[username] = {
                 password,
-                balance: 3000000,
+                balance: 0,
                 history: []
             };
             localStorage.setItem('aviator_users', JSON.stringify(users));
@@ -486,42 +487,116 @@ if (depositBtn && withdrawBtn && bankAmountInput && bankMessage) {
     };
 }
 
+const freeDepositBtn = document.getElementById('free-deposit-btn');
+const freeWithdrawBtn = document.getElementById('free-withdraw-btn');
+const freeBankMessage = document.getElementById('free-bank-message');
+const withdrawTimer = document.getElementById('withdraw-timer');
+
+if (freeDepositBtn && freeWithdrawBtn && freeBankMessage && withdrawTimer) {
+    freeDepositBtn.onclick = () => {
+        let users = JSON.parse(localStorage.getItem('aviator_users') || '{}');
+        if (!currentUser) {
+            freeBankMessage.textContent = 'Bạn cần đăng nhập!';
+            return;
+        }
+        if (users[currentUser].freeDeposited) {
+            freeBankMessage.textContent = 'Bạn đã nhận miễn phí 100,000 VND!';
+            return;
+        }
+        calculatedBalanceAmount += 100000;
+        balanceAmount.textContent = calculatedBalanceAmount.toLocaleString('vi-VN') + ' VND';
+        users[currentUser].freeDeposited = true;
+        localStorage.setItem('aviator_users', JSON.stringify(users));
+        freeBankMessage.textContent = 'Đã cộng 100,000 VND vào tài khoản!';
+        saveUserData && saveUserData();
+    };
+
+    freeWithdrawBtn.onclick = () => {
+        if (!currentUser) {
+            freeBankMessage.textContent = 'Bạn cần đăng nhập!';
+            return;
+        }
+        freeWithdrawBtn.disabled = true;
+        let timeLeft = 120; // 2 phút = 120 giây
+        withdrawTimer.style.display = 'block';
+        updateTimerText(timeLeft);
+        freeBankMessage.textContent = 'Vui lòng chờ để nhận 100,000 VND hỗ trợ...';
+
+        let timerInterval = setInterval(() => {
+            timeLeft--;
+            updateTimerText(timeLeft);
+            if (timeLeft <= 0) {
+                clearInterval(timerInterval);
+                let users = JSON.parse(localStorage.getItem('aviator_users') || '{}');
+                calculatedBalanceAmount += 100000;
+                balanceAmount.textContent = calculatedBalanceAmount.toLocaleString('vi-VN') + ' VND';
+                users[currentUser].freeSupport = (users[currentUser].freeSupport || 0) + 1;
+                localStorage.setItem('aviator_users', JSON.stringify(users));
+                freeBankMessage.textContent = 'Đã cộng 100,000 VND hỗ trợ vào tài khoản!';
+                withdrawTimer.style.display = 'none';
+                freeWithdrawBtn.disabled = false;
+                saveUserData && saveUserData();
+            }
+        }, 1000);
+
+        function updateTimerText(sec) {
+            let m = Math.floor(sec / 60);
+            let s = sec % 60;
+            withdrawTimer.textContent = `Thời gian chờ: ${m}:${s.toString().padStart(2, '0')}`;
+        }
+    };
+}
+
 let noBetRounds = 0;
 let forceBigExplosion = false;
 
-function getRandomStop(placedBetAmount, cashedOut, forceBigExplosion) {
-    if (forceBigExplosion) {
-        return Math.random() * 90000 + 10000;
+function getRandomStop() {
+    // Lấy thông tin tài khoản hiện tại
+    let users = JSON.parse(localStorage.getItem('aviator_users') || '{}');
+    let user = users && currentUser ? users[currentUser] : null;
+    let totalBet = 0, totalWin = 0, totalLose = 0, winCount = 0, loseCount = 0;
+
+    if (user && user.history) {
+        user.history.forEach(item => {
+            totalBet += item.betAmount || 0;
+            if (item.result && item.result.startsWith('Thắng')) {
+                winCount++;
+                // Lấy số tiền thắng từ chuỗi kết quả
+                let match = item.result.match(/Thắng ([\d.,]+)/);
+                if (match) totalWin += parseInt(match[1].replace(/\D/g, ''));
+            } else {
+                loseCount++;
+                totalLose += item.betAmount || 0;
+            }
+        });
     }
-    if (cashedOut) {
-        if (Math.random() < 0.8) { 
-            let logMax = Math.log(10000000);
-            let rand = Math.random() * logMax;
-            let stop = Math.exp(rand);
-            return Math.max(1.01, stop);
-        } else {
-     
-            return Math.random() * 10 + 1.01;
+
+    let winRate = totalBet > 0 ? totalWin / totalBet : 0;
+    let loseRate = totalBet > 0 ? totalLose / totalBet : 0;
+
+    // Nếu tài khoản thắng quá nhiều (winRate > 1.2), tăng tỉ lệ nổ sớm dưới 2x lên 95%
+    if (winRate > 1.2) {
+        if (Math.random() < 0.95) {
+            return Math.random() + 1; // 1.00x - <2.00x
         }
-    } else if (placedBetAmount && placedBetAmount > 0) {
- 
-        let explodeChance = 0.7; 
-        if (Math.random() < explodeChance) {
-            return Math.random() * 8 + 2;
-        } else {
-            
-            let logMax = Math.log(100);
-            let rand = Math.random() * logMax;
-            let stop = Math.exp(rand);
-            return Math.max(10, stop);
-        }
-    } else {
-     
-        let logMax = Math.log(100000);
-        let rand = Math.random() * logMax;
-        let stop = Math.exp(rand);
-        return Math.max(1.01, stop);
+        // 5% còn lại random từ 2x đến 3x
+        return Math.random() + 2; // 2.00x - <3.00x
     }
+
+    // Nếu tài khoản thua nhiều (loseRate > 0.8 và loseCount > winCount), cho ăn vài tay cược nhỏ
+    if (loseRate > 0.8 && loseCount > winCount) {
+        if (Math.random() < 0.7) {
+            return Math.random() * 2 + 2; // 2.00x - <4.00x (dễ vượt 2x, 3x)
+        }
+        // 30% còn lại random bình thường
+    }
+
+    // Bình thường: 90% nổ ở 1.00x - <3.00x, 10% còn lại random từ 3x đến 100x
+    if (Math.random() < 0.90) {
+        return Math.random() * 2 + 1; // 1.00x - <3.00x
+    }
+    // 10% còn lại: random từ 3x đến 100x
+    return Math.random() * 97 + 3; // 3.00x - <100.00x
 }
 
 function generateRandomCounters(n = 10) {
@@ -529,9 +604,43 @@ function generateRandomCounters(n = 10) {
     for (let i = 0; i < n; i++) {
         // Hệ số ngẫu nhiên từ 1.01x đến 100x, làm tròn 2 số lẻ
         let value = Math.random() < 0.7
-            ? (Math.random() * 4 + 1.01) // 70% ra nhỏ (1.01-5x)
-            : (Math.random() * 95 + 5);  // 30% ra lớn (5-100x)
+            ? (Math.random() * 9 + 9.09) // 70% ra nhỏ (1.01-5x)
+            : (Math.random() * 55 + 5);  // 30% ra lớn (5-100x)
         arr.push(Number(value.toFixed(2)));
     }
     return arr;
+}
+
+const vietqrDepositBtn = document.getElementById('vietqr-deposit-btn');
+const vietqrAmountInput = document.getElementById('vietqr-amount');
+const vietqrInfo = document.getElementById('vietqr-info');
+const vietqrContent = document.getElementById('vietqr-content');
+const vietqrImg = document.getElementById('vietqr-img');
+const vietqrMessage = document.getElementById('vietqr-message');
+
+// Thông tin admin nhận tiền (bạn thay bằng thông tin thật)
+const vietqrBank = 'Mb';
+const vietqrAccount = '701235';
+const vietqrName = 'LE QUOC CHIEN';
+
+if (vietqrDepositBtn && vietqrAmountInput && vietqrInfo && vietqrContent && vietqrImg && vietqrMessage) {
+    vietqrDepositBtn.onclick = () => {
+        const amount = parseInt(vietqrAmountInput.value);
+        if (!currentUser) {
+            vietqrMessage.textContent = 'Bạn cần đăng nhập!';
+            return;
+        }
+        if (!amount || amount < 10000) {
+            vietqrMessage.textContent = 'Số tiền tối thiểu là 10,000 VND!';
+            return;
+        }
+        // Tạo nội dung chuyển khoản
+        const content = `NAP ${currentUser.toUpperCase()} ${amount}`;
+        vietqrContent.textContent = content;
+        vietqrInfo.style.display = 'block';
+        // Tạo link QR (dùng API của vietqr.io)
+        const qrUrl = `https://img.vietqr.io/image/${vietqrBank}-${vietqrAccount}-compact2.png?amount=${amount}&addInfo=${encodeURIComponent(content)}&accountName=${encodeURIComponent(vietqrName)}`;
+        vietqrImg.src = qrUrl;
+        vietqrMessage.textContent = 'Quét mã QR hoặc chuyển khoản đúng nội dung!';
+    };
 }

@@ -348,14 +348,15 @@ body {
 }
 
 #bank-wrapper {
-    margin-top: 24px;
-    padding: 16px;
+    margin: 32px auto 0 auto;
+    padding: 24px 16px;
     background: #23242a;
-    border-radius: 12px;
+    border-radius: 16px;
     width: 100%;
     max-width: 400px;
     box-sizing: border-box;
     text-align: center;
+    box-shadow: 0 4px 24px #0003;
 }
 #bank-actions {
     display: flex;
@@ -420,4 +421,40 @@ body {
 }
 #stop-auto:hover {
     background: #ff1744;
+}
+
+.nice-btn {
+    padding: 12px 24px;
+    margin: 8px 6px;
+    border-radius: 8px;
+    border: none;
+    background: linear-gradient(90deg, #ff9800 0%, #ffb300 100%);
+    color: #fff;
+    font-weight: bold;
+    font-size: 17px;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.2s;
+    box-shadow: 0 2px 8px #0002;
+}
+.nice-btn:disabled {
+    background: #bbb;
+    color: #fff;
+    cursor: not-allowed;
+    transform: none;
+}
+.nice-btn:hover:not(:disabled) {
+    background: linear-gradient(90deg, #ffb300 0%, #ff9800 100%);
+    transform: scale(1.05);
+}
+
+#free-bank-message {
+    min-height: 22px;
+    font-size: 15px;
+    color: #ffd54f;
+    margin-top: 10px;
+}
+
+#withdraw-timer {
+    font-size: 18px;
+    letter-spacing: 1px;
 }
