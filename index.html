@@ -29,9 +29,8 @@
             <div id="input-wrapper">
                 <input type="text" id="bet-input" value="2.500" placeholder="Nhập số tiền cược (VND)">
                 <button id="increase-bet">+</button>
-                <label for="auto-bet">
-                    <input type="checkbox" id="auto-bet"> Tự động cược
-                </label>
+                <button id="bet-half">1/2</button> <!-- Nút cược nửa số dư -->
+                <button id="bet-all">All</button>
             </div>
             <button id="bet-button">Đặt Cược</button>
         </div>
@@ -52,6 +51,27 @@
                 <tbody></tbody>
             </table>
         </div>
+        <div id="bank-wrapper">
+            <h3>Ngân Hàng</h3>
+            <div id="bank-actions">
+                <input type="number" id="bank-amount" placeholder="Nhập số tiền (VND)">
+                <button id="deposit-btn">Nạp tiền</button>
+                <button id="withdraw-btn">Rút tiền</button>
+            </div>
+            <p id="bank-message"></p>
+        </div>
+    </div>
+    <div id="auth-modal" class="modal">
+      <div class="modal-content">
+        <h2 id="auth-title">Đăng nhập</h2>
+        <input type="text" id="auth-username" placeholder="Tên đăng nhập">
+        <input type="password" id="auth-password" placeholder="Mật khẩu">
+        <button id="auth-submit">Đăng nhập</button>
+        <p id="auth-message"></p>
+        <p>
+          <span id="toggle-auth">Chưa có tài khoản? Đăng ký</span>
+        </p>
+      </div>
     </div>
     <script src="script.js"></script>
 </body>
