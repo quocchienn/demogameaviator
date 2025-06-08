@@ -320,7 +320,6 @@ const authMessage = document.getElementById('auth-message');
 const toggleAuth = document.getElementById('toggle-auth');
 
 let isLogin = true;
-let currentUser = null;
 
 // Chuyển đổi giữa đăng nhập và đăng ký
 if (toggleAuth) {
@@ -690,3 +689,103 @@ if (vietqrDepositBtn && vietqrAmountInput && vietqrInfo && vietqrContent && viet
         vietqrMessage.textContent = 'Quét mã QR hoặc chuyển khoản đúng nội dung!';
     };
 }
+
+// Kết nối socket
+const socket = io('https://demogameaviator.onrender.com');
+
+let currentUser = null;
+
+// Đăng ký
+function register(username, password, callback) {
+    socket.emit('register', { username, password }, callback);
+}
+
+// Đăng nhập
+function login(username, password, callback) {
+    socket.emit('login', { username, password }, callback);
+}
+
+// Hiển thị người online
+socket.on('onlineUsers', function(users) {
+    const list = document.getElementById('online-users-list');
+    if (!list) return;
+    list.innerHTML = '';
+    users.forEach(u => {
+        const li = document.createElement('li');
+        li.textContent = u;
+        list.appendChild(li);
+    });
+});
+
+// Đăng nhập/đăng ký từ form
+document.getElementById('auth-submit').onclick = function() {
+    const username = document.getElementById('auth-username').value.trim();
+    const password = document.getElementById('auth-password').value.trim();
+    if (!username || !password) {
+        document.getElementById('auth-message').textContent = 'Vui lòng nhập đủ thông tin!';
+        return;
+    }
+    if (!isLogin) { // <-- Sửa ở đây, thay vì isRegisterMode
+        register(username, password, (res) => {
+            if (res.success) {
+                onLoginSuccess(username, res.user);
+            } else {
+                document.getElementById('auth-message').textContent = res.message;
+            }
+        });
+    } else {
+        login(username, password, (res) => {
+            if (res.success) {
+                onLoginSuccess(username, res.user);
+            } else {
+                document.getElementById('auth-message').textContent = res.message;
+            }
+        });
+    }
+};
+
+function onLoginSuccess(username, user) {
+    currentUser = username;
+    calculatedBalanceAmount = user.balance;
+    betHistory = user.history || [];
+    // Ẩn modal, cập nhật giao diện...
+    document.getElementById('auth-modal').style.display = 'none';
+    // Đồng bộ ván chơi hiện tại
+    socket.emit('getCurrentRound');
+}
+
+// Khi server gửi trạng thái ván hiện tại
+socket.on('currentRound', function(round) {
+    // Cập nhật giao diện, hệ số, trạng thái ván chơi theo round
+    // (Bạn cần tự đồng bộ lại logic game client theo round này)
+});
+
+// Khi server gửi multiplier mới
+socket.on('multiplier', function(multiplier) {
+    // Cập nhật hệ số trên giao diện
+    document.getElementById('counter').textContent = multiplier + 'x';
+});
+
+// Khi server gửi roundEnd
+socket.on('roundEnd', function(finalMultiplier) {
+    // Cập nhật trạng thái kết thúc ván, xử lý cashout, lịch sử...
+});
+
+// Khi server gửi newRound
+socket.on('newRound', function(roundInfo) {
+    // Reset trạng thái, chuẩn bị ván mới
+});
+
+// Khi server không online, client sẽ không đăng nhập/đăng ký được (vì không kết nối socket)
+// Thông báo khi không kết nối được tới server
+socket.on('connect_error', function() {
+    document.getElementById('auth-message').textContent = 'Không thể kết nối tới máy chủ, vui lòng thử lại sau!';
+    // Có thể disable nút đăng nhập/đăng ký nếu muốn:
+    document.getElementById('auth-submit').disabled = true;
+});
+
+// Khi kết nối lại được thì enable lại nút
+socket.on('connect', function() {
+    document.getElementById('auth-message').textContent = '';
+    document.getElementById('auth-submit').disabled = false;
+});
