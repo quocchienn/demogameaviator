@@ -362,7 +362,7 @@ if (authSubmit) {
             startRound();
 
             // Kết nối tới server Node.js
-            const socket = io('http://localhost:3000');
+            const socket = io('https://demogameaviator.onrender.com');
 
             // Nhận dữ liệu bảng xếp hạng từ server và cập nhật bảng
             socket.on('leaderboard', function(leaderboard) {
