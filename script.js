@@ -362,7 +362,7 @@ if (authSubmit) {
             startRound();
 
             // Kết nối tới server Node.js
-            const socket = io('https://demogameaviator.onrender.com'); // Kết nối tới server
+            const socket = io('https://demogameaviator-1.onrender.com'); // Kết nối tới server
 
             let serverRoundActive = false;
             let serverMultiplier = 1.0;
