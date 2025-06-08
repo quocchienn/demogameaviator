@@ -10,18 +10,41 @@ const io = new Server(server, { cors: { origin: "*" } });
 app.use(cors());
 app.use(express.json());
 
-let users = {}; // { username: { balance, history: [] } }
+let users = {}; // { username: { password, balance, history: [] } }
 
 io.on('connection', (socket) => {
     // Gửi bảng xếp hạng khi có client kết nối
     socket.emit('leaderboard', getLeaderboard());
 
-    // Nhận cập nhật từ client
+    // Đăng ký tài khoản mới
+    socket.on('register', ({ username, password }, callback) => {
+        if (users[username]) {
+            callback({ success: false, message: 'Tài khoản đã tồn tại' });
+        } else {
+            users[username] = { password, balance: 3000000, history: [] };
+            callback({ success: true, user: users[username] });
+            io.emit('leaderboard', getLeaderboard());
+        }
+    });
+
+    // Đăng nhập
+    socket.on('login', ({ username, password }, callback) => {
+        if (!users[username]) {
+            callback({ success: false, message: 'Tài khoản không tồn tại' });
+        } else if (users[username].password !== password) {
+            callback({ success: false, message: 'Sai mật khẩu' });
+        } else {
+            callback({ success: true, user: users[username] });
+        }
+    });
+
+    // Cập nhật thông tin user (số dư, lịch sử cược)
     socket.on('updateUser', ({ username, balance, history }) => {
-        users[username] = users[username] || { balance: 0, history: [] };
-        users[username].balance = balance;
-        users[username].history = history;
-        io.emit('leaderboard', getLeaderboard());
+        if (users[username]) {
+            users[username].balance = balance;
+            users[username].history = history;
+            io.emit('leaderboard', getLeaderboard());
+        }
     });
 
     // Gửi lại bảng xếp hạng khi client yêu cầu
