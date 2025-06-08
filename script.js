@@ -23,7 +23,7 @@ const image = new Image();
 image.src = './img/aviator_jogo.png';
 
 let balanceAmount = document.getElementById('balance-amount');
-let calculatedBalanceAmount = 0;
+let calculatedBalanceAmount = 3000000;
 balanceAmount.textContent = calculatedBalanceAmount.toLocaleString('vi-VN') + ' VND';
 
 let betButton = document.getElementById('bet-button');
@@ -334,8 +334,6 @@ if (toggleAuth) {
 }
 
 // Xử lý đăng nhập/đăng ký
-const socket = io('https://demogameaviator.onrender.com'); // Đặt ở đầu file, dùng chung
-
 if (authSubmit) {
     authSubmit.onclick = () => {
         const username = authUsername.value.trim();
@@ -344,50 +342,104 @@ if (authSubmit) {
             authMessage.textContent = 'Vui lòng nhập đầy đủ thông tin';
             return;
         }
+        let users = JSON.parse(localStorage.getItem('aviator_users') || '{}');
         if (isLogin) {
-            // Đăng nhập qua server
-            socket.emit('login', { username, password }, (res) => {
-                if (!res.success) {
-                    authMessage.textContent = res.message || 'Sai tài khoản hoặc mật khẩu';
-                    return;
-                }
-                // Lưu dữ liệu server trả về vào localStorage (nếu muốn)
-                let users = JSON.parse(localStorage.getItem('aviator_users') || '{}');
-                users[username] = {
-                    password,
-                    balance: res.user.balance,
-                    history: res.user.history || []
-                };
-                localStorage.setItem('aviator_users', JSON.stringify(users));
-                currentUser = username;
-                calculatedBalanceAmount = res.user.balance;
-                betHistory = res.user.history || [];
-                balanceAmount.textContent = calculatedBalanceAmount.toLocaleString('vi-VN') + ' VND';
-                updateBetHistoryTable();
-                authModal.style.display = 'none';
-                messageField.textContent = 'Chờ vòng tiếp theo';
-                startRound();
+            if (!users[username] || users[username].password !== password) {
+                authMessage.textContent = 'Sai tài khoản hoặc mật khẩu';
+                return;
+            }
+            // Đăng nhập thành công
+            authModal.style.display = 'none';
+            currentUser = username;
+            calculatedBalanceAmount = users[username].balance;
+            balanceAmount.textContent = calculatedBalanceAmount.toLocaleString('vi-VN') + ' VND';
+            betHistory = users[username].history || [];
+            updateBetHistoryTable();
+
+            // Tạo mới lịch sử hệ số mỗi lần đăng nhập
+            counterDepo = generateRandomCounters();
+            updateCounterDepo(); // Nếu có hàm cập nhật giao diện hệ số
+            startRound();
+
+            // Kết nối tới server Node.js
+            const socket = io('https://demogameaviator.onrender.com'); // Kết nối tới server
+
+            let serverRoundActive = false;
+            let serverMultiplier = 1.0;
+            let serverRandomStop = 2.0;
+            let serverStartTime = null;
+
+            // Lắng nghe trạng thái ván từ server
+            socket.on('roundInfo', (data) => {
+                serverRoundActive = data.roundActive;
+                serverMultiplier = data.multiplier;
+                serverRandomStop = data.randomStop;
+                serverStartTime = data.startTime;
+                // Nếu đang trong ván, cập nhật UI cho phù hợp
             });
+
+            socket.on('roundStarted', (data) => {
+                serverRoundActive = true;
+                serverMultiplier = 1.0;
+                serverRandomStop = data.randomStop;
+                serverStartTime = data.startTime;
+                // Reset UI, cho phép đặt cược
+            });
+
+            socket.on('multiplierUpdate', (data) => {
+                serverMultiplier = data.multiplier;
+                // Cập nhật hệ số trên UI
+                document.getElementById('counter').textContent = serverMultiplier.toFixed(2) + 'x';
+            });
+
+            socket.on('roundEnded', (data) => {
+                serverRoundActive = false;
+                // Hiển thị kết quả, xử lý thắng/thua
+            });
+
+            // Gửi dữ liệu user lên server mỗi khi thay đổi
+            function syncUserToServer() {
+                if (!currentUser) return;
+                socket.emit('updateUser', {
+                    username: currentUser,
+                    balance: calculatedBalanceAmount,
+                    history: betHistory
+                });
+            }
+
+            // Gọi syncUserToServer() sau khi cập nhật số dư hoặc lịch sử cược
+            const _oldUpdateBetHistory = updateBetHistory;
+            updateBetHistory = function(betAmount, multiplier, result) {
+                _oldUpdateBetHistory.call(this, betAmount, multiplier, result);
+                syncUserToServer();
+            };
+            const _oldCashOut = cashOut;
+            cashOut = function() {
+                _oldCashOut.call(this);
+                syncUserToServer();
+            };
+            const _oldPlaceBet = placeBet;
+            placeBet = function() {
+                _oldPlaceBet.call(this);
+                syncUserToServer();
+            };
         } else {
-            // Đăng ký mới lên server (dùng socket đã khai báo ở đầu file)
-            socket.emit('register', { username, password }, (res) => {
-                if (!res.success) {
-                    authMessage.textContent = res.message || 'Tên đăng nhập đã tồn tại';
-                    return;
-                }
-                let users = JSON.parse(localStorage.getItem('aviator_users') || '{}');
-                users[username] = {
-                    password,
-                    balance: res.user.balance, // Lấy đúng từ server (0)
-                    history: []
-                };
-                localStorage.setItem('aviator_users', JSON.stringify(users));
-                authMessage.textContent = 'Đăng ký thành công! Vui lòng đăng nhập.';
-                isLogin = true;
-                authTitle.textContent = 'Đăng nhập';
-                authSubmit.textContent = 'Đăng nhập';
-                toggleAuth.textContent = 'Chưa có tài khoản? Đăng ký';
-            });
+            if (users[username]) {
+                authMessage.textContent = 'Tên đăng nhập đã tồn tại';
+                return;
+            }
+            // Đăng ký mới
+            users[username] = {
+                password,
+                balance: 0,
+                history: []
+            };
+            localStorage.setItem('aviator_users', JSON.stringify(users));
+            authMessage.textContent = 'Đăng ký thành công! Vui lòng đăng nhập.';
+            isLogin = true;
+            authTitle.textContent = 'Đăng nhập';
+            authSubmit.textContent = 'Đăng nhập';
+            toggleAuth.textContent = 'Chưa có tài khoản? Đăng ký';
         }
     };
 }
@@ -621,4 +673,7 @@ function generateRandomCounters(n = 10) {
     }
     return arr;
 }
+
+
+
 
