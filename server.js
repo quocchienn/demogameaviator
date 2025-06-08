@@ -11,22 +11,6 @@ app.use(cors());
 app.use(express.json());
 
 let users = {}; // { username: { password, balance, history: [] } }
-let onlineUsers = {}; // { socket.id: username }
-let gameState = {
-    phase: 'betting', // 'betting' | 'flying' | 'ended'
-    counter: 1.0,
-    randomStop: Math.random() * (10 - 0.1) + 0.8,
-    startTime: Date.now(),
-    bets: {} // { username: betAmount }
-};
-
-function broadcastOnlineUsers() {
-    io.emit('onlineUsers', Object.values(onlineUsers));
-}
-
-function broadcastGameState() {
-    io.emit('gameState', gameState);
-}
 
 io.on('connection', (socket) => {
     // Gửi bảng xếp hạng khi có client kết nối
@@ -37,7 +21,7 @@ io.on('connection', (socket) => {
         if (users[username]) {
             callback({ success: false, message: 'Tài khoản đã tồn tại' });
         } else {
-            users[username] = { password, balance: 3000000, history: [] };
+            users[username] = { password, balance: 0, history: [] }; // PHẢI là 0
             callback({ success: true, user: users[username] });
             io.emit('leaderboard', getLeaderboard());
         }
@@ -51,8 +35,6 @@ io.on('connection', (socket) => {
             callback({ success: false, message: 'Sai mật khẩu' });
         } else {
             callback({ success: true, user: users[username] });
-            onlineUsers[socket.id] = username;
-            broadcastOnlineUsers();
         }
     });
 
@@ -69,67 +51,7 @@ io.on('connection', (socket) => {
     socket.on('getLeaderboard', () => {
         socket.emit('leaderboard', getLeaderboard());
     });
-
-    socket.on('disconnect', () => {
-        delete onlineUsers[socket.id];
-        broadcastOnlineUsers();
-    });
-
-    // Đặt cược
-    socket.on('placeBet', ({ username, betAmount }) => {
-        if (gameState.phase === 'betting') {
-            gameState.bets[username] = betAmount;
-            broadcastGameState();
-        }
-    });
-
-    // Rút tiền (cash out)
-    socket.on('cashOut', ({ username, multiplier }) => {
-        if (gameState.phase === 'flying' && gameState.bets[username]) {
-            // Xử lý trả thưởng, cập nhật balance...
-            // Gửi lại trạng thái game và user
-            broadcastGameState();
-            io.emit('userUpdate', { username, user: users[username] });
-        }
-    });
-
-    // Gửi trạng thái game và online khi client yêu cầu
-    socket.on('getGameState', () => {
-        socket.emit('gameState', gameState);
-        socket.emit('onlineUsers', Object.values(onlineUsers));
-    });
 });
-
-// Vòng lặp game chung cho tất cả client
-setInterval(() => {
-    if (gameState.phase === 'betting') {
-        // Đếm ngược đặt cược, sau đó chuyển sang flying
-        if (Date.now() - gameState.startTime > 8000) {
-            gameState.phase = 'flying';
-            gameState.counter = 1.0;
-            gameState.randomStop = Math.random() * (10 - 0.1) + 0.8;
-            gameState.startTime = Date.now();
-            broadcastGameState();
-        }
-    } else if (gameState.phase === 'flying') {
-        // Tăng hệ số, kiểm tra nổ
-        gameState.counter += 0.02;
-        if (gameState.counter >= gameState.randomStop) {
-            gameState.phase = 'ended';
-            broadcastGameState();
-            setTimeout(() => {
-                // Reset game
-                gameState.phase = 'betting';
-                gameState.counter = 1.0;
-                gameState.bets = {};
-                gameState.startTime = Date.now();
-                broadcastGameState();
-            }, 4000);
-        } else {
-            broadcastGameState();
-        }
-    }
-}, 100);
 
 function getLeaderboard() {
     let leaderboard = [];

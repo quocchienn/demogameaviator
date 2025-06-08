@@ -23,7 +23,7 @@ const image = new Image();
 image.src = './img/aviator_jogo.png';
 
 let balanceAmount = document.getElementById('balance-amount');
-let calculatedBalanceAmount = 3000000;
+let calculatedBalanceAmount = 0;
 balanceAmount.textContent = calculatedBalanceAmount.toLocaleString('vi-VN') + ' VND';
 
 let betButton = document.getElementById('bet-button');
@@ -334,47 +334,62 @@ if (toggleAuth) {
 }
 
 // Xử lý đăng nhập/đăng ký
-const socket = io('https://demogameaviator.onrender.com'); // hoặc domain server
+const socket = io('https://demogameaviator.onrender.com'); // Đặt ở đầu file, dùng chung
 
-// Hiển thị người online
-const onlineListDiv = document.createElement('div');
-onlineListDiv.id = 'online-users';
-document.getElementById('wrapper').insertBefore(onlineListDiv, document.getElementById('header'));
-
-socket.on('onlineUsers', (usernames) => {
-    onlineListDiv.innerHTML = `<b>Đang online:</b> ${usernames.map(u => `<span>${u}</span>`).join(', ')}`;
-});
-
-// Lắng nghe trạng thái game chung
-socket.on('gameState', (state) => {
-    // Cập nhật counter, phase, randomStop, bets...
-    // Ví dụ:
-    counter = state.counter;
-    // Cập nhật giao diện counter, trạng thái, v.v.
-    document.getElementById('counter').textContent = counter.toFixed(2) + 'x';
-    // ...cập nhật các nút, trạng thái đặt cược, v.v. theo state.phase...
-});
-
-// Khi đăng nhập thành công, yêu cầu trạng thái game và online
-function afterLogin() {
-    socket.emit('getGameState');
-    // ...các thao tác sau đăng nhập khác...
-}
-
-// Khi đặt cược, gửi lên server
-function placeBet() {
-    // ...lấy username, betAmount...
-    socket.emit('placeBet', { username: currentUser, betAmount: parseFormattedNumber(inputBox.value) });
-}
-
-// Khi cash out, gửi lên server
-function cashOut() {
-    socket.emit('cashOut', { username: currentUser, multiplier: counter });
-}
-
-function setBetInputEnabled(enabled) {
-    inputBox.disabled = !enabled;
-    increaseBetButton.disabled = !enabled;
+if (authSubmit) {
+    authSubmit.onclick = () => {
+        const username = authUsername.value.trim();
+        const password = authPassword.value.trim();
+        if (!username || !password) {
+            authMessage.textContent = 'Vui lòng nhập đầy đủ thông tin';
+            return;
+        }
+        if (isLogin) {
+            // Đăng nhập qua server
+            socket.emit('login', { username, password }, (res) => {
+                if (!res.success) {
+                    authMessage.textContent = res.message || 'Sai tài khoản hoặc mật khẩu';
+                    return;
+                }
+                // Lưu dữ liệu server trả về vào localStorage (nếu muốn)
+                let users = JSON.parse(localStorage.getItem('aviator_users') || '{}');
+                users[username] = {
+                    password,
+                    balance: res.user.balance,
+                    history: res.user.history || []
+                };
+                localStorage.setItem('aviator_users', JSON.stringify(users));
+                currentUser = username;
+                calculatedBalanceAmount = res.user.balance;
+                betHistory = res.user.history || [];
+                balanceAmount.textContent = calculatedBalanceAmount.toLocaleString('vi-VN') + ' VND';
+                updateBetHistoryTable();
+                authModal.style.display = 'none';
+                messageField.textContent = 'Chờ vòng tiếp theo';
+                startRound();
+            });
+        } else {
+            // Đăng ký mới lên server (dùng socket đã khai báo ở đầu file)
+            socket.emit('register', { username, password }, (res) => {
+                if (!res.success) {
+                    authMessage.textContent = res.message || 'Tên đăng nhập đã tồn tại';
+                    return;
+                }
+                let users = JSON.parse(localStorage.getItem('aviator_users') || '{}');
+                users[username] = {
+                    password,
+                    balance: res.user.balance, // Lấy đúng từ server (0)
+                    history: []
+                };
+                localStorage.setItem('aviator_users', JSON.stringify(users));
+                authMessage.textContent = 'Đăng ký thành công! Vui lòng đăng nhập.';
+                isLogin = true;
+                authTitle.textContent = 'Đăng nhập';
+                authSubmit.textContent = 'Đăng nhập';
+                toggleAuth.textContent = 'Chưa có tài khoản? Đăng ký';
+            });
+        }
+    };
 }
 
 // Lưu lại số dư và lịch sử khi có thay đổi
@@ -607,36 +622,3 @@ function generateRandomCounters(n = 10) {
     return arr;
 }
 
-const vietqrDepositBtn = document.getElementById('vietqr-deposit-btn');
-const vietqrAmountInput = document.getElementById('vietqr-amount');
-const vietqrInfo = document.getElementById('vietqr-info');
-const vietqrContent = document.getElementById('vietqr-content');
-const vietqrImg = document.getElementById('vietqr-img');
-const vietqrMessage = document.getElementById('vietqr-message');
-
-// Thông tin admin nhận tiền (bạn thay bằng thông tin thật)
-const vietqrBank = 'Mb';
-const vietqrAccount = '701235';
-const vietqrName = 'LE QUOC CHIEN';
-
-if (vietqrDepositBtn && vietqrAmountInput && vietqrInfo && vietqrContent && vietqrImg && vietqrMessage) {
-    vietqrDepositBtn.onclick = () => {
-        const amount = parseInt(vietqrAmountInput.value);
-        if (!currentUser) {
-            vietqrMessage.textContent = 'Bạn cần đăng nhập!';
-            return;
-        }
-        if (!amount || amount < 10000) {
-            vietqrMessage.textContent = 'Số tiền tối thiểu là 10,000 VND!';
-            return;
-        }
-        // Tạo nội dung chuyển khoản
-        const content = `NAP ${currentUser.toUpperCase()} ${amount}`;
-        vietqrContent.textContent = content;
-        vietqrInfo.style.display = 'block';
-        // Tạo link QR (dùng API của vietqr.io)
-        const qrUrl = `https://img.vietqr.io/image/${vietqrBank}-${vietqrAccount}-compact2.png?amount=${amount}&addInfo=${encodeURIComponent(content)}&accountName=${encodeURIComponent(vietqrName)}`;
-        vietqrImg.src = qrUrl;
-        vietqrMessage.textContent = 'Quét mã QR hoặc chuyển khoản đúng nội dung!';
-    };
-}
