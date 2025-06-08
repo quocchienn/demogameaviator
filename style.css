@@ -13,13 +13,16 @@ body {
 
 #wrapper {
     width: 100%;
-    max-width: 600px;
-    margin: 0 auto;
-    padding: 20px;
+    max-width: 900px;      /* vừa phải, không quá to */
+    margin: 36px auto 0 auto;
+    padding: 32px 0 60px 0;
     display: flex;
     flex-direction: column;
     align-items: center;
     min-height: 100vh;
+    box-shadow: 0 8px 48px #000a;
+    border-radius: 32px;
+    background: rgba(34,36,42,0.98);
 }
 
 #header {
@@ -70,7 +73,7 @@ body {
 
 #mid-wrapper {
     width: 100%;
-    max-width: 800px; /* tăng từ 500px lên 800px nếu có */
+    max-width: 850px;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -99,13 +102,16 @@ body {
 #counterWrapper {
     position: relative;
     width: 100%;
-    max-width: 800px;
-    height: 480px;
-    border-radius: 20px;
+    max-width: 850px;
+    height: 700px;          /* tăng chiều cao để kéo dài xuống dưới */
+    border-radius: 28px;
     overflow: hidden;
-    background: url('img/aviator.spribe.background copy.jpeg') center center/cover no-repeat;
-    /* Nếu muốn mờ nền, thêm: */
-    /* background-blend-mode: multiply; */
+    background: url('img/aviator.spribe.background copy.jpeg') center center/cover no-repeat, #23242a;
+    box-shadow: 0 6px 32px #0007;
+    margin-bottom: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 #bg-image {

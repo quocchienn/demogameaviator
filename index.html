@@ -58,6 +58,20 @@
             <div id="withdraw-timer" style="display:none;margin-top:10px;font-weight:bold;color:#ff9800;"></div>
             <p id="free-bank-message"></p>
         </div>
+        <div id="leaderboard-wrapper">
+            <h3>Bảng Xếp Hạng Server</h3>
+            <table id="leaderboard-table">
+                <thead>
+                    <tr>
+                        <th>Hạng</th>
+                        <th>Tài Khoản</th>
+                        <th>Tổng Thắng</th>
+                        <th>Số Dư</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
         </div>
     </div>
     <div id="auth-modal" class="modal">
@@ -72,6 +86,7 @@
         </p>
       </div>
     </div>
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     <script src="script.js"></script>
 </body>
 </html>

@@ -360,6 +360,52 @@ if (authSubmit) {
             counterDepo = generateRandomCounters();
             updateCounterDepo(); // Nếu có hàm cập nhật giao diện hệ số
             startRound();
+
+            // Kết nối tới server Node.js
+            const socket = io('http://localhost:3000');
+
+            // Nhận dữ liệu bảng xếp hạng từ server và cập nhật bảng
+            socket.on('leaderboard', function(leaderboard) {
+                const leaderboardTable = document.querySelector('#leaderboard-table tbody');
+                if (!leaderboardTable) return;
+                leaderboardTable.innerHTML = '';
+                leaderboard.forEach((user, idx) => {
+                    const row = leaderboardTable.insertRow(-1);
+                    row.innerHTML = `
+                        <td>${idx + 1}</td>
+                        <td>${user.username}</td>
+                        <td>${user.totalWin.toLocaleString('vi-VN')} VND</td>
+                        <td>${user.balance.toLocaleString('vi-VN')} VND</td>
+                    `;
+                });
+            });
+
+            // Gửi dữ liệu user lên server mỗi khi thay đổi
+            function syncUserToServer() {
+                if (!currentUser) return;
+                socket.emit('updateUser', {
+                    username: currentUser,
+                    balance: calculatedBalanceAmount,
+                    history: betHistory
+                });
+            }
+
+            // Gọi syncUserToServer() sau khi cập nhật số dư hoặc lịch sử cược
+            const _oldUpdateBetHistory = updateBetHistory;
+            updateBetHistory = function(betAmount, multiplier, result) {
+                _oldUpdateBetHistory.call(this, betAmount, multiplier, result);
+                syncUserToServer();
+            };
+            const _oldCashOut = cashOut;
+            cashOut = function() {
+                _oldCashOut.call(this);
+                syncUserToServer();
+            };
+            const _oldPlaceBet = placeBet;
+            placeBet = function() {
+                _oldPlaceBet.call(this);
+                syncUserToServer();
+            };
         } else {
             if (users[username]) {
                 authMessage.textContent = 'Tên đăng nhập đã tồn tại';
