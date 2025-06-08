@@ -12,46 +12,25 @@ app.use(express.json());
 
 let users = {}; // { username: { password, balance, history: [] } }
 let onlineUsers = {}; // { socket.id: username }
-let currentRound = {
-    roundId: 0,
-    multiplier: 1.00,
-    isRunning: false,
-    startTime: null,
-    randomStop: 0,
-    cashedOut: {} // { username: { bet, cashOutAt, win } }
+let gameState = {
+    phase: 'betting', // 'betting' | 'flying' | 'ended'
+    counter: 1.0,
+    randomStop: Math.random() * (10 - 0.1) + 0.8,
+    startTime: Date.now(),
+    bets: {} // { username: betAmount }
 };
 
-// Định kỳ tạo ván mới và broadcast hệ số
-function startNewRound() {
-    currentRound.roundId++;
-    currentRound.isRunning = true;
-    currentRound.startTime = Date.now();
-    currentRound.multiplier = 1.00;
-    currentRound.randomStop = Math.random() * (10 - 1.1) + 1.1;
-    currentRound.cashedOut = {};
-    io.emit('newRound', {
-        roundId: currentRound.roundId,
-        randomStop: currentRound.randomStop
-    });
-
-    let interval = setInterval(() => {
-        if (!currentRound.isRunning) return clearInterval(interval);
-        currentRound.multiplier += 0.01;
-        io.emit('multiplier', currentRound.multiplier.toFixed(2));
-        if (currentRound.multiplier >= currentRound.randomStop) {
-            currentRound.isRunning = false;
-            io.emit('roundEnd', currentRound.multiplier.toFixed(2));
-            clearInterval(interval);
-            setTimeout(startNewRound, 4000); // 4s sau bắt đầu ván mới
-        }
-    }, 50);
+function broadcastOnlineUsers() {
+    io.emit('onlineUsers', Object.values(onlineUsers));
 }
-setTimeout(startNewRound, 2000);
+
+function broadcastGameState() {
+    io.emit('gameState', gameState);
+}
 
 io.on('connection', (socket) => {
-    // Gửi bảng xếp hạng và danh sách online khi có client kết nối
+    // Gửi bảng xếp hạng khi có client kết nối
     socket.emit('leaderboard', getLeaderboard());
-    socket.emit('onlineUsers', Object.values(onlineUsers));
 
     // Đăng ký tài khoản mới
     socket.on('register', ({ username, password }, callback) => {
@@ -71,16 +50,10 @@ io.on('connection', (socket) => {
         } else if (users[username].password !== password) {
             callback({ success: false, message: 'Sai mật khẩu' });
         } else {
-            onlineUsers[socket.id] = username;
-            io.emit('onlineUsers', Object.values(onlineUsers));
             callback({ success: true, user: users[username] });
+            onlineUsers[socket.id] = username;
+            broadcastOnlineUsers();
         }
-    });
-
-    // Đăng xuất hoặc disconnect
-    socket.on('disconnect', () => {
-        delete onlineUsers[socket.id];
-        io.emit('onlineUsers', Object.values(onlineUsers));
     });
 
     // Cập nhật thông tin user (số dư, lịch sử cược)
@@ -92,31 +65,71 @@ io.on('connection', (socket) => {
         }
     });
 
-    // Đặt cược và cashout
-    socket.on('placeBet', ({ username, bet }) => {
-        if (!currentRound.isRunning) return;
-        if (!currentRound.cashedOut[username]) {
-            currentRound.cashedOut[username] = { bet, cashOutAt: null, win: 0 };
-        }
-    });
-    socket.on('cashOut', ({ username, atMultiplier }) => {
-        if (!currentRound.isRunning) return;
-        if (currentRound.cashedOut[username] && !currentRound.cashedOut[username].cashOutAt) {
-            currentRound.cashedOut[username].cashOutAt = atMultiplier;
-            currentRound.cashedOut[username].win = Math.floor(currentRound.cashedOut[username].bet * atMultiplier);
-        }
-    });
-
     // Gửi lại bảng xếp hạng khi client yêu cầu
     socket.on('getLeaderboard', () => {
         socket.emit('leaderboard', getLeaderboard());
     });
 
-    // Gửi trạng thái ván hiện tại khi client yêu cầu
-    socket.on('getCurrentRound', () => {
-        socket.emit('currentRound', currentRound);
+    socket.on('disconnect', () => {
+        delete onlineUsers[socket.id];
+        broadcastOnlineUsers();
+    });
+
+    // Đặt cược
+    socket.on('placeBet', ({ username, betAmount }) => {
+        if (gameState.phase === 'betting') {
+            gameState.bets[username] = betAmount;
+            broadcastGameState();
+        }
+    });
+
+    // Rút tiền (cash out)
+    socket.on('cashOut', ({ username, multiplier }) => {
+        if (gameState.phase === 'flying' && gameState.bets[username]) {
+            // Xử lý trả thưởng, cập nhật balance...
+            // Gửi lại trạng thái game và user
+            broadcastGameState();
+            io.emit('userUpdate', { username, user: users[username] });
+        }
+    });
+
+    // Gửi trạng thái game và online khi client yêu cầu
+    socket.on('getGameState', () => {
+        socket.emit('gameState', gameState);
+        socket.emit('onlineUsers', Object.values(onlineUsers));
     });
 });
+
+// Vòng lặp game chung cho tất cả client
+setInterval(() => {
+    if (gameState.phase === 'betting') {
+        // Đếm ngược đặt cược, sau đó chuyển sang flying
+        if (Date.now() - gameState.startTime > 8000) {
+            gameState.phase = 'flying';
+            gameState.counter = 1.0;
+            gameState.randomStop = Math.random() * (10 - 0.1) + 0.8;
+            gameState.startTime = Date.now();
+            broadcastGameState();
+        }
+    } else if (gameState.phase === 'flying') {
+        // Tăng hệ số, kiểm tra nổ
+        gameState.counter += 0.02;
+        if (gameState.counter >= gameState.randomStop) {
+            gameState.phase = 'ended';
+            broadcastGameState();
+            setTimeout(() => {
+                // Reset game
+                gameState.phase = 'betting';
+                gameState.counter = 1.0;
+                gameState.bets = {};
+                gameState.startTime = Date.now();
+                broadcastGameState();
+            }, 4000);
+        } else {
+            broadcastGameState();
+        }
+    }
+}, 100);
 
 function getLeaderboard() {
     let leaderboard = [];

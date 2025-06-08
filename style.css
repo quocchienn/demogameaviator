@@ -464,3 +464,15 @@ body {
     font-size: 18px;
     letter-spacing: 1px;
 }
+
+#online-users {
+    width: 100%;
+    text-align: left;
+    margin-bottom: 10px;
+    color: #30fcbe;
+    font-weight: 600;
+}
+#online-users span {
+    margin-right: 8px;
+    color: #fb024c;
+}

@@ -320,6 +320,7 @@ const authMessage = document.getElementById('auth-message');
 const toggleAuth = document.getElementById('toggle-auth');
 
 let isLogin = true;
+let currentUser = null;
 
 // Chuyển đổi giữa đăng nhập và đăng ký
 if (toggleAuth) {
@@ -333,97 +334,47 @@ if (toggleAuth) {
 }
 
 // Xử lý đăng nhập/đăng ký
-if (authSubmit) {
-    authSubmit.onclick = () => {
-        const username = authUsername.value.trim();
-        const password = authPassword.value.trim();
-        if (!username || !password) {
-            authMessage.textContent = 'Vui lòng nhập đầy đủ thông tin';
-            return;
-        }
-        let users = JSON.parse(localStorage.getItem('aviator_users') || '{}');
-        if (isLogin) {
-            if (!users[username] || users[username].password !== password) {
-                authMessage.textContent = 'Sai tài khoản hoặc mật khẩu';
-                return;
-            }
-            // Đăng nhập thành công
-            authModal.style.display = 'none';
-            currentUser = username;
-            calculatedBalanceAmount = users[username].balance;
-            balanceAmount.textContent = calculatedBalanceAmount.toLocaleString('vi-VN') + ' VND';
-            betHistory = users[username].history || [];
-            updateBetHistoryTable();
+const socket = io('https://demogameaviator.onrender.com'); // hoặc domain server
 
-            // Tạo mới lịch sử hệ số mỗi lần đăng nhập
-            counterDepo = generateRandomCounters();
-            updateCounterDepo(); // Nếu có hàm cập nhật giao diện hệ số
-            startRound();
+// Hiển thị người online
+const onlineListDiv = document.createElement('div');
+onlineListDiv.id = 'online-users';
+document.getElementById('wrapper').insertBefore(onlineListDiv, document.getElementById('header'));
 
-            // Kết nối tới server Node.js
-            const socket = io('https://demogameaviator.onrender.com');
+socket.on('onlineUsers', (usernames) => {
+    onlineListDiv.innerHTML = `<b>Đang online:</b> ${usernames.map(u => `<span>${u}</span>`).join(', ')}`;
+});
 
-            // Nhận dữ liệu bảng xếp hạng từ server và cập nhật bảng
-            socket.on('leaderboard', function(leaderboard) {
-                const leaderboardTable = document.querySelector('#leaderboard-table tbody');
-                if (!leaderboardTable) return;
-                leaderboardTable.innerHTML = '';
-                leaderboard.forEach((user, idx) => {
-                    const row = leaderboardTable.insertRow(-1);
-                    row.innerHTML = `
-                        <td>${idx + 1}</td>
-                        <td>${user.username}</td>
-                        <td>${user.totalWin.toLocaleString('vi-VN')} VND</td>
-                        <td>${user.balance.toLocaleString('vi-VN')} VND</td>
-                    `;
-                });
-            });
+// Lắng nghe trạng thái game chung
+socket.on('gameState', (state) => {
+    // Cập nhật counter, phase, randomStop, bets...
+    // Ví dụ:
+    counter = state.counter;
+    // Cập nhật giao diện counter, trạng thái, v.v.
+    document.getElementById('counter').textContent = counter.toFixed(2) + 'x';
+    // ...cập nhật các nút, trạng thái đặt cược, v.v. theo state.phase...
+});
 
-            // Gửi dữ liệu user lên server mỗi khi thay đổi
-            function syncUserToServer() {
-                if (!currentUser) return;
-                socket.emit('updateUser', {
-                    username: currentUser,
-                    balance: calculatedBalanceAmount,
-                    history: betHistory
-                });
-            }
+// Khi đăng nhập thành công, yêu cầu trạng thái game và online
+function afterLogin() {
+    socket.emit('getGameState');
+    // ...các thao tác sau đăng nhập khác...
+}
 
-            // Gọi syncUserToServer() sau khi cập nhật số dư hoặc lịch sử cược
-            const _oldUpdateBetHistory = updateBetHistory;
-            updateBetHistory = function(betAmount, multiplier, result) {
-                _oldUpdateBetHistory.call(this, betAmount, multiplier, result);
-                syncUserToServer();
-            };
-            const _oldCashOut = cashOut;
-            cashOut = function() {
-                _oldCashOut.call(this);
-                syncUserToServer();
-            };
-            const _oldPlaceBet = placeBet;
-            placeBet = function() {
-                _oldPlaceBet.call(this);
-                syncUserToServer();
-            };
-        } else {
-            if (users[username]) {
-                authMessage.textContent = 'Tên đăng nhập đã tồn tại';
-                return;
-            }
-            // Đăng ký mới
-            users[username] = {
-                password,
-                balance: 0,
-                history: []
-            };
-            localStorage.setItem('aviator_users', JSON.stringify(users));
-            authMessage.textContent = 'Đăng ký thành công! Vui lòng đăng nhập.';
-            isLogin = true;
-            authTitle.textContent = 'Đăng nhập';
-            authSubmit.textContent = 'Đăng nhập';
-            toggleAuth.textContent = 'Chưa có tài khoản? Đăng ký';
-        }
-    };
+// Khi đặt cược, gửi lên server
+function placeBet() {
+    // ...lấy username, betAmount...
+    socket.emit('placeBet', { username: currentUser, betAmount: parseFormattedNumber(inputBox.value) });
+}
+
+// Khi cash out, gửi lên server
+function cashOut() {
+    socket.emit('cashOut', { username: currentUser, multiplier: counter });
+}
+
+function setBetInputEnabled(enabled) {
+    inputBox.disabled = !enabled;
+    increaseBetButton.disabled = !enabled;
 }
 
 // Lưu lại số dư và lịch sử khi có thay đổi
@@ -689,103 +640,3 @@ if (vietqrDepositBtn && vietqrAmountInput && vietqrInfo && vietqrContent && viet
         vietqrMessage.textContent = 'Quét mã QR hoặc chuyển khoản đúng nội dung!';
     };
 }
-
-// Kết nối socket
-const socket = io('https://demogameaviator.onrender.com');
-
-let currentUser = null;
-
-// Đăng ký
-function register(username, password, callback) {
-    socket.emit('register', { username, password }, callback);
-}
-
-// Đăng nhập
-function login(username, password, callback) {
-    socket.emit('login', { username, password }, callback);
-}
-
-// Hiển thị người online
-socket.on('onlineUsers', function(users) {
-    const list = document.getElementById('online-users-list');
-    if (!list) return;
-    list.innerHTML = '';
-    users.forEach(u => {
-        const li = document.createElement('li');
-        li.textContent = u;
-        list.appendChild(li);
-    });
-});
-
-// Đăng nhập/đăng ký từ form
-document.getElementById('auth-submit').onclick = function() {
-    const username = document.getElementById('auth-username').value.trim();
-    const password = document.getElementById('auth-password').value.trim();
-    if (!username || !password) {
-        document.getElementById('auth-message').textContent = 'Vui lòng nhập đủ thông tin!';
-        return;
-    }
-    if (!isLogin) { // <-- Sửa ở đây, thay vì isRegisterMode
-        register(username, password, (res) => {
-            if (res.success) {
-                onLoginSuccess(username, res.user);
-            } else {
-                document.getElementById('auth-message').textContent = res.message;
-            }
-        });
-    } else {
-        login(username, password, (res) => {
-            if (res.success) {
-                onLoginSuccess(username, res.user);
-            } else {
-                document.getElementById('auth-message').textContent = res.message;
-            }
-        });
-    }
-};
-
-function onLoginSuccess(username, user) {
-    currentUser = username;
-    calculatedBalanceAmount = user.balance;
-    betHistory = user.history || [];
-    // Ẩn modal, cập nhật giao diện...
-    document.getElementById('auth-modal').style.display = 'none';
-    // Đồng bộ ván chơi hiện tại
-    socket.emit('getCurrentRound');
-}
-
-// Khi server gửi trạng thái ván hiện tại
-socket.on('currentRound', function(round) {
-    // Cập nhật giao diện, hệ số, trạng thái ván chơi theo round
-    // (Bạn cần tự đồng bộ lại logic game client theo round này)
-});
-
-// Khi server gửi multiplier mới
-socket.on('multiplier', function(multiplier) {
-    // Cập nhật hệ số trên giao diện
-    document.getElementById('counter').textContent = multiplier + 'x';
-});
-
-// Khi server gửi roundEnd
-socket.on('roundEnd', function(finalMultiplier) {
-    // Cập nhật trạng thái kết thúc ván, xử lý cashout, lịch sử...
-});
-
-// Khi server gửi newRound
-socket.on('newRound', function(roundInfo) {
-    // Reset trạng thái, chuẩn bị ván mới
-});
-
-// Khi server không online, client sẽ không đăng nhập/đăng ký được (vì không kết nối socket)
-// Thông báo khi không kết nối được tới server
-socket.on('connect_error', function() {
-    document.getElementById('auth-message').textContent = 'Không thể kết nối tới máy chủ, vui lòng thử lại sau!';
-    // Có thể disable nút đăng nhập/đăng ký nếu muốn:
-    document.getElementById('auth-submit').disabled = true;
-});
-
-// Khi kết nối lại được thì enable lại nút
-socket.on('connect', function() {
-    document.getElementById('auth-message').textContent = '';
-    document.getElementById('auth-submit').disabled = false;
-});
