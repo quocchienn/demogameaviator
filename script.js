@@ -362,39 +362,22 @@ if (authSubmit) {
             startRound();
 
             // Kết nối tới server Node.js
-            const socket = io('https://demogameaviator-1.onrender.com'); // Kết nối tới server
+            const socket = io('https://demogameaviator.onrender.com');
 
-            let serverRoundActive = false;
-            let serverMultiplier = 1.0;
-            let serverRandomStop = 2.0;
-            let serverStartTime = null;
-
-            // Lắng nghe trạng thái ván từ server
-            socket.on('roundInfo', (data) => {
-                serverRoundActive = data.roundActive;
-                serverMultiplier = data.multiplier;
-                serverRandomStop = data.randomStop;
-                serverStartTime = data.startTime;
-                // Nếu đang trong ván, cập nhật UI cho phù hợp
-            });
-
-            socket.on('roundStarted', (data) => {
-                serverRoundActive = true;
-                serverMultiplier = 1.0;
-                serverRandomStop = data.randomStop;
-                serverStartTime = data.startTime;
-                // Reset UI, cho phép đặt cược
-            });
-
-            socket.on('multiplierUpdate', (data) => {
-                serverMultiplier = data.multiplier;
-                // Cập nhật hệ số trên UI
-                document.getElementById('counter').textContent = serverMultiplier.toFixed(2) + 'x';
-            });
-
-            socket.on('roundEnded', (data) => {
-                serverRoundActive = false;
-                // Hiển thị kết quả, xử lý thắng/thua
+            // Nhận dữ liệu bảng xếp hạng từ server và cập nhật bảng
+            socket.on('leaderboard', function(leaderboard) {
+                const leaderboardTable = document.querySelector('#leaderboard-table tbody');
+                if (!leaderboardTable) return;
+                leaderboardTable.innerHTML = '';
+                leaderboard.forEach((user, idx) => {
+                    const row = leaderboardTable.insertRow(-1);
+                    row.innerHTML = `
+                        <td>${idx + 1}</td>
+                        <td>${user.username}</td>
+                        <td>${user.totalWin.toLocaleString('vi-VN')} VND</td>
+                        <td>${user.balance.toLocaleString('vi-VN')} VND</td>
+                    `;
+                });
             });
 
             // Gửi dữ liệu user lên server mỗi khi thay đổi
@@ -674,6 +657,36 @@ function generateRandomCounters(n = 10) {
     return arr;
 }
 
+const vietqrDepositBtn = document.getElementById('vietqr-deposit-btn');
+const vietqrAmountInput = document.getElementById('vietqr-amount');
+const vietqrInfo = document.getElementById('vietqr-info');
+const vietqrContent = document.getElementById('vietqr-content');
+const vietqrImg = document.getElementById('vietqr-img');
+const vietqrMessage = document.getElementById('vietqr-message');
 
+// Thông tin admin nhận tiền (bạn thay bằng thông tin thật)
+const vietqrBank = 'Mb';
+const vietqrAccount = '701235';
+const vietqrName = 'LE QUOC CHIEN';
 
-
+if (vietqrDepositBtn && vietqrAmountInput && vietqrInfo && vietqrContent && vietqrImg && vietqrMessage) {
+    vietqrDepositBtn.onclick = () => {
+        const amount = parseInt(vietqrAmountInput.value);
+        if (!currentUser) {
+            vietqrMessage.textContent = 'Bạn cần đăng nhập!';
+            return;
+        }
+        if (!amount || amount < 10000) {
+            vietqrMessage.textContent = 'Số tiền tối thiểu là 10,000 VND!';
+            return;
+        }
+        // Tạo nội dung chuyển khoản
+        const content = `NAP ${currentUser.toUpperCase()} ${amount}`;
+        vietqrContent.textContent = content;
+        vietqrInfo.style.display = 'block';
+        // Tạo link QR (dùng API của vietqr.io)
+        const qrUrl = `https://img.vietqr.io/image/${vietqrBank}-${vietqrAccount}-compact2.png?amount=${amount}&addInfo=${encodeURIComponent(content)}&accountName=${encodeURIComponent(vietqrName)}`;
+        vietqrImg.src = qrUrl;
+        vietqrMessage.textContent = 'Quét mã QR hoặc chuyển khoản đúng nội dung!';
+    };
+}
