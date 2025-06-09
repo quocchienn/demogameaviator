@@ -690,3 +690,75 @@ if (vietqrDepositBtn && vietqrAmountInput && vietqrInfo && vietqrContent && viet
         vietqrMessage.textContent = 'Quét mã QR hoặc chuyển khoản đúng nội dung!';
     };
 }
+
+function getLeaderboardData() {
+    let users = JSON.parse(localStorage.getItem('aviator_users') || '{}');
+    let leaderboard = [];
+    for (let username in users) {
+        let user = users[username];
+        let totalWin = 0;
+        if (user.history && Array.isArray(user.history)) {
+            user.history.forEach(item => {
+                if (item.result && item.result.startsWith('Thắng')) {
+                    // Lấy số tiền thắng từ chuỗi kết quả
+                    let match = item.result.match(/Thắng ([\d.,]+)/);
+                    if (match) totalWin += parseInt(match[1].replace(/\D/g, ''));
+                }
+            });
+        }
+        leaderboard.push({
+            username,
+            totalWin,
+            balance: user.balance || 0
+        });
+    }
+    // Sắp xếp: tổng thắng giảm dần, nếu bằng thì ưu tiên số dư cao hơn
+    leaderboard.sort((a, b) => {
+        if (b.totalWin !== a.totalWin) return b.totalWin - a.totalWin;
+        return b.balance - a.balance;
+    });
+    return leaderboard.slice(0, 10); // Top 10
+}
+
+function updateLeaderboardTable() {
+    const leaderboardTable = document.querySelector('#leaderboard-table tbody');
+    if (!leaderboardTable) return;
+    leaderboardTable.innerHTML = '';
+    const leaderboard = getLeaderboardData();
+    leaderboard.forEach((user, idx) => {
+        const row = leaderboardTable.insertRow(-1);
+        row.innerHTML = `
+            <td>${idx + 1}</td>
+            <td>${user.username}</td>
+            <td>${user.totalWin.toLocaleString('vi-VN')} VND</td>
+            <td>${user.balance.toLocaleString('vi-VN')} VND</td>
+        `;
+    });
+}
+
+// Gọi cập nhật bảng xếp hạng mỗi khi dữ liệu thay đổi
+const _oldSaveUserData = saveUserData;
+saveUserData = function() {
+    _oldSaveUserData && _oldSaveUserData.call(this);
+    updateLeaderboardTable();
+};
+
+// Cập nhật bảng xếp hạng khi đăng nhập
+window.addEventListener('DOMContentLoaded', () => {
+    updateLeaderboardTable();
+});
+
+// Đăng ký
+function register(username, password, callback) {
+    socket.emit('register', { username, password }, callback);
+}
+
+// Đăng nhập
+function login(username, password, callback) {
+    socket.emit('login', { username, password }, callback);
+}
+
+// Khi cập nhật số dư, lịch sử cược, gửi lên server
+function syncUserToServer(username, balance, history) {
+    socket.emit('updateUser', { username, balance, history });
+}
